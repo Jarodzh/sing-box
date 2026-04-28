@@ -1,6 +1,6 @@
 #!/bin/bash
 
-author=233boy
+author=Jarodzh
 # github=https://github.com/233boy/sing-box
 
 # bash fonts colors
@@ -177,7 +177,7 @@ download() {
         is_ok=$is_core_ok
         ;;
     sh)
-        link=https://github.com/${is_sh_repo}/releases/latest/download/code.tar.gz
+        link=https://github.com/Jarodzh/sing-box/archive/refs/heads/feature/country-naming.tar.gz
         name="$is_core_name 脚本"
         tmpfile=$tmpsh
         is_ok=$is_sh_ok
@@ -408,7 +408,7 @@ main() {
     if [[ $local_install ]]; then
         cp -rf $PWD/* $is_sh_dir
     else
-        tar zxf $is_sh_ok -C $is_sh_dir
+        tar zxf $is_sh_ok -C $is_sh_dir --strip-components=1
     fi
 
     # create core bin dir

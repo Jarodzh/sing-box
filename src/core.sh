@@ -131,13 +131,18 @@ get_uuid() {
 }
 
 get_ip() {
-    [[ $ip || $is_no_auto_tls || $is_gen || $is_dont_get_ip ]] && return
+    [[ $ip || $is_no_auto_tls || $is_gen || $is_dont_get_ip ]] && {
+        [[ -z $loc ]] && loc="UNKNOWN"
+        [[ -z $isp_loc ]] && isp_loc="VPS"
+        return
+    }
     export "$(_wget -4 -qO- https://one.one.one.one/cdn-cgi/trace | grep ip=)" &>/dev/null
     [[ ! $ip ]] && export "$(_wget -6 -qO- https://one.one.one.one/cdn-cgi/trace | grep ip=)" &>/dev/null
     export "$(_wget -4 -qO- https://one.one.one.one/cdn-cgi/trace 2>/dev/null | grep loc=)" &>/dev/null
     [[ ! $loc ]] && export "$(_wget -6 -qO- https://one.one.one.one/cdn-cgi/trace 2>/dev/null | grep loc=)" &>/dev/null
     [[ ! $loc ]] && loc="UNKNOWN"
     # 获取城市/服务商用于节点命名
+    export isp_loc
     isp_loc=$(_wget -4 -qO- --timeout=3 https://ipinfo.io/city 2>/dev/null | tr -d '[:space:]')
     [[ -z $isp_loc ]] && isp_loc=$(_wget -4 -qO- --timeout=3 https://ipinfo.io/org 2>/dev/null | sed 's/AS[0-9]* *//' | tr -d '[:space:]' | sed 's/[^a-zA-Z0-9].*//')
     [[ -z $isp_loc ]] && isp_loc="VPS"

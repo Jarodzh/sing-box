@@ -202,6 +202,14 @@ download() {
 get_ip() {
     export "$(_wget -4 -qO- https://one.one.one.one/cdn-cgi/trace | grep ip=)" &>/dev/null
     [[ -z $ip ]] && export "$(_wget -6 -qO- https://one.one.one.one/cdn-cgi/trace | grep ip=)" &>/dev/null
+    # get country and city for node naming
+    export "$(_wget -4 -qO- https://one.one.one.one/cdn-cgi/trace 2>/dev/null | grep loc=)" &>/dev/null
+    [[ -z $loc ]] && export "$(_wget -6 -qO- https://one.one.one.one/cdn-cgi/trace 2>/dev/null | grep loc=)" &>/dev/null
+    [[ -z $loc ]] && loc="UNKNOWN"
+    export isp_loc
+    isp_loc=$(_wget -4 -qO- --timeout=3 https://ipinfo.io/city 2>/dev/null | tr -d '[:space:]')
+    [[ -z $isp_loc ]] && isp_loc=$(_wget -4 -qO- --timeout=3 https://ipinfo.io/org 2>/dev/null | sed 's/AS[0-9]* *//' | tr -d '[:space:]' | sed 's/[^a-zA-Z0-9].*//')
+    [[ -z $isp_loc ]] && isp_loc="VPS"
 }
 
 # check background tasks status

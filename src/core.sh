@@ -131,23 +131,26 @@ get_uuid() {
 }
 
 get_ip() {
-    [[ $ip || $is_no_auto_tls || $is_gen || $is_dont_get_ip ]] && {
-        [[ -z $loc ]] && loc="UNKNOWN"
-        [[ -z $isp_loc ]] && isp_loc="VPS"
-        return
+    # IP detection - skip if already set
+    [[ ! $ip && ! $is_no_auto_tls && ! $is_gen && ! $is_dont_get_ip ]] && {
+        export "$(_wget -4 -qO- https://one.one.one.one/cdn-cgi/trace | grep ip=)" &>/dev/null
+        [[ ! $ip ]] && export "$(_wget -6 -qO- https://one.one.one.one/cdn-cgi/trace | grep ip=)" &>/dev/null
+        [[ ! $ip ]] && {
+            err "获取服务器 IP 失败.."
+        }
     }
-    export "$(_wget -4 -qO- https://one.one.one.one/cdn-cgi/trace | grep ip=)" &>/dev/null
-    [[ ! $ip ]] && export "$(_wget -6 -qO- https://one.one.one.one/cdn-cgi/trace | grep ip=)" &>/dev/null
-    export "$(_wget -4 -qO- https://one.one.one.one/cdn-cgi/trace 2>/dev/null | grep loc=)" &>/dev/null
-    [[ ! $loc ]] && export "$(_wget -6 -qO- https://one.one.one.one/cdn-cgi/trace 2>/dev/null | grep loc=)" &>/dev/null
-    [[ ! $loc ]] && loc="UNKNOWN"
-    # 获取城市/服务商用于节点命名
-    export isp_loc
-    isp_loc=$(_wget -4 -qO- --timeout=3 https://ipinfo.io/city 2>/dev/null | tr -d '[:space:]')
-    [[ -z $isp_loc ]] && isp_loc=$(_wget -4 -qO- --timeout=3 https://ipinfo.io/org 2>/dev/null | sed 's/AS[0-9]* *//' | tr -d '[:space:]' | sed 's/[^a-zA-Z0-9].*//')
-    [[ -z $isp_loc ]] && isp_loc="VPS"
-    [[ ! $ip ]] && {
-        err "获取服务器 IP 失败.."
+    # Country code (always try)
+    [[ -z $loc ]] && {
+        export "$(_wget -4 -qO- https://one.one.one.one/cdn-cgi/trace 2>/dev/null | grep loc=)" &>/dev/null
+        [[ ! $loc ]] && export "$(_wget -6 -qO- https://one.one.one.one/cdn-cgi/trace 2>/dev/null | grep loc=)" &>/dev/null
+        [[ ! $loc ]] && loc="UNKNOWN"
+    }
+    # City/ISP for node naming (always try)
+    [[ -z $isp_loc ]] && {
+        export isp_loc
+        isp_loc=$(_wget -4 -qO- --timeout=3 https://ipinfo.io/city 2>/dev/null | tr -d '[:space:]')
+        [[ -z $isp_loc ]] && isp_loc=$(_wget -4 -qO- --timeout=3 https://ipinfo.io/org 2>/dev/null | sed 's/AS[0-9]* *//' | tr -d '[:space:]' | sed 's/[^a-zA-Z0-9].*//')
+        [[ -z $isp_loc ]] && isp_loc="VPS"
     }
 }
 
@@ -1380,7 +1383,7 @@ info() {
             is_can_change=(0 1 2 3 5)
             is_info_show=(0 1 2 3 4 6 7 8)
             [[ $is_protocol == 'vmess' ]] && {
-                is_vmess_url=$(jq -c '{v:2,ps:'"$loc-$isp_loc"',add:'\"$is_addr\"',port:'\"$is_https_port\"',id:'\"$uuid\"',aid:"0",net:'\"$net\"',host:'\"$host\"',path:'\"$path\"',tls:'\"tls\"'}' <<<{})
+                is_vmess_url=$(jq -c '{v:2,ps:'"$loc-$isp_loc-${uuid:0:8}"',add:'\"$is_addr\"',port:'\"$is_https_port\"',id:'\"$uuid\"',aid:"0",net:'\"$net\"',host:'\"$host\"',path:'\"$path\"',tls:'\"tls\"'}' <<<{})
                 is_url=vmess://$(echo -n $is_vmess_url | base64 -w 0)
             } || {
                 [[ $is_protocol == "trojan" ]] && {
@@ -1389,7 +1392,7 @@ info() {
                     is_can_change=(0 1 2 3 4)
                     is_info_show=(0 1 2 10 4 6 7 8)
                 }
-                is_url="$is_protocol://$uuid@$host:$is_https_port?encryption=none&security=tls&type=$net&host=$host&path=$path#$loc-$isp_loc"
+                is_url="$is_protocol://$uuid@$host:$is_https_port?encryption=none&security=tls&type=$net&host=$host&path=$path#$loc-$isp_loc-${uuid:0:8}"
             }
             [[ $is_caddy ]] && is_can_change+=(11)
             is_info_str=($is_protocol $is_addr $is_https_port $uuid $net $host $path 'tls')
@@ -1411,7 +1414,7 @@ info() {
                 is_info_str+=(tls h3 true)
                 is_quic_add=",tls:\"tls\",alpn:\"h3\"" # cant add allowInsecure
             }
-            is_vmess_url=$(jq -c "{v:2,ps:"$loc-$isp_loc",add:\"$is_addr\",port:\"$port\",id:\"$uuid\",aid:\"0\",net:\"$net\",type:\"$is_type\"$is_quic_add}" <<<{})
+            is_vmess_url=$(jq -c "{v:2,ps:\"$loc-$isp_loc-${uuid:0:8}\",add:\"$is_addr\",port:\"$port\",id:\"$uuid\",aid:\"0\",net:\"$net\",type:\"$is_type\"$is_quic_add}" <<<{})
             is_url=vmess://$(echo -n $is_vmess_url | base64 -w 0)
         fi
         ;;
@@ -1438,7 +1441,7 @@ info() {
         is_insecure=1
         is_can_change=(0 1 4 5)
         is_info_show=(0 1 2 3 10 8 9 20 21)
-        is_url="$is_protocol://$uuid:$password@$is_addr:$port?alpn=h3&allow_insecure=1&congestion_control=bbr#$loc-$isp_loc"
+        is_url="$is_protocol://$uuid:$password@$is_addr:$port?alpn=h3&allow_insecure=1&congestion_control=bbr#$loc-$isp_loc-${uuid:0:8}"
         is_info_str=($is_protocol $is_addr $port $uuid $password tls h3 true bbr)
         ;;
     reality)
@@ -1453,7 +1456,7 @@ info() {
             is_info_show=(${is_info_show[@]/15/})
         }
         is_info_str=($is_protocol $is_addr $port $uuid $is_flow $is_net_type reality $is_servername chrome $is_public_key)
-        is_url="$is_protocol://$uuid@$is_addr:$port?encryption=none&security=reality&flow=$is_flow&type=$is_net_type&sni=$is_servername&pbk=$is_public_key&fp=chrome#$loc-$isp_loc"
+        is_url="$is_protocol://$uuid@$is_addr:$port?encryption=none&security=reality&flow=$is_flow&type=$is_net_type&sni=$is_servername&pbk=$is_public_key&fp=chrome#$loc-$isp_loc-${uuid:0:8}"
         ;;
     anytls)
         is_can_change=(0 1 4)

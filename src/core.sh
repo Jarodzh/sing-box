@@ -170,6 +170,10 @@ get_pbk() {
     is_tmp_pbk=($($is_core_bin generate reality-keypair | sed 's/.*://'))
     is_public_key=${is_tmp_pbk[1]}
     is_private_key=${is_tmp_pbk[0]}
+    # generate short_id for reality
+    is_short_id=$(openssl rand -hex 4 2>/dev/null)
+    [[ -z $is_short_id ]] && is_short_id=$(od -An -N4 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')
+    [[ -z $is_short_id ]] && is_short_id="6ba85179"
 }
 
 show_list() {
@@ -1264,7 +1268,7 @@ get() {
             net=reality
             [[ ! $is_servername ]] && is_servername=$is_random_servername
             [[ ! $is_private_key ]] && get_pbk
-            is_json_add="tls:{enabled:true,server_name:\"$is_servername\",reality:{enabled:true,handshake:{server:\"$is_servername\",server_port:443},private_key:\"$is_private_key\",short_id:[\"\"]}}"
+            is_json_add="tls:{enabled:true,server_name:\"$is_servername\",reality:{enabled:true,handshake:{server:\"$is_servername\",server_port:443},private_key:\"$is_private_key\",short_id:[\"$is_short_id\"]}}"
             [[ $is_lower =~ "http" ]] && {
                 is_json_add="$is_json_add,transport:{type:\"http\"}"
             } || {

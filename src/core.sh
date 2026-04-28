@@ -68,6 +68,7 @@ info_list=(
     "用户名 (Username)"
     "跳过证书验证 (allowInsecure)"
     "拥塞控制算法 (congestion_control)"
+    "短ID (Short ID)"
 )
 change_list=(
     "更改协议"
@@ -380,7 +381,23 @@ create() {
         is_tls=tls
         is_client=1
         get info $2
-        [[ ! $is_client_id_json ]] && err "($is_config_name) 不支持生成客户端配置."
+        # build client-specific JSON parts
+        case $net in
+        reality)
+            [[ $net_type =~ "http" ]] && is_flow= || is_flow=xtls-rprx-vision
+            is_client_id_json="server:\"$is_addr\",server_port:$port,uuid:\"$uuid\",flow:\"$is_flow\""
+            is_stream="tls:{enabled:true,server_name:\"$is_servername\",reality:{enabled:true,public_key:\"$is_public_key\",short_id:\"$is_short_id\"}}"
+            [[ $net_type =~ "http" ]] && is_stream="$is_stream,transport:{type:\"http\"}" || is_stream="$is_stream,transport:{type:\"tcp\"}"
+            ;;
+        ws | tcp | h2 | quic | http*)
+            is_client_id_json="server:\"$is_addr\",server_port:$port,uuid:\"$uuid\""
+            is_stream="transport:{type:\"$net\"$is_path_host_json}"
+            [[ $host ]] && is_stream="tls:{enabled:true,server_name:\"$host\"},$is_stream"
+            ;;
+        *)
+            err "($is_config_name) 不支持生成客户端配置."
+            ;;
+        esac
         is_new_json=$(jq '{outbounds:[{tag:'\"$is_config_name\"',protocol:'\"$is_protocol\"','"$is_client_id_json"','"$is_stream"'}]}' <<<{})
         msg
         jq <<<$is_new_json
@@ -1130,9 +1147,9 @@ get() {
         get file $2
         if [[ $is_config_file ]]; then
             is_json_str=$(cat $is_conf_dir/"$is_config_file" | sed s#//.*##)
-            is_json_data=$(jq '(.inbounds[0]|.type,.listen_port,(.users[0]|.uuid,.password,.username),.method,.password,.override_port,.override_address,(.transport|.type,.path,.headers.host),(.tls|.server_name,.reality.private_key)),(.outbounds[1].tag)' <<<$is_json_str)
+            is_json_data=$(jq '(.inbounds[0]|.type,.listen_port,(.users[0]|.uuid,.password,.username),.method,.password,.override_port,.override_address,(.transport|.type,.path,.headers.host),(.tls|.server_name,.reality.private_key,.reality.short_id[0])),(.outbounds[1].tag)' <<<$is_json_str)
             [[ $? != 0 ]] && err "无法读取此文件: $is_config_file"
-            is_up_var_set=(null is_protocol port uuid password username ss_method ss_password door_port door_addr net_type path host is_servername is_private_key is_public_key)
+            is_up_var_set=(null is_protocol port uuid password username ss_method ss_password door_port door_addr net_type path host is_servername is_private_key is_short_id is_public_key)
             [[ $is_debug ]] && msg "\n------------- debug: $is_config_file -------------"
             i=0
             for v in $(sed 's/""/null/g;s/"//g' <<<"$is_json_data"); do
@@ -1451,7 +1468,7 @@ info() {
     reality)
         is_color=41
         is_can_change=(0 1 5 9 10)
-        is_info_show=(0 1 2 3 15 4 8 16 17 18)
+        is_info_show=(0 1 2 3 15 4 8 16 17 18 21)
         is_flow=xtls-rprx-vision
         is_net_type=tcp
         [[ $net_type =~ "http" || ${is_new_protocol,,} =~ "http" ]] && {
@@ -1459,8 +1476,8 @@ info() {
             is_net_type=h2
             is_info_show=(${is_info_show[@]/15/})
         }
-        is_info_str=($is_protocol $is_addr $port $uuid $is_flow $is_net_type reality $is_servername chrome $is_public_key)
-        is_url="$is_protocol://$uuid@$is_addr:$port?encryption=none&security=reality&flow=$is_flow&type=$is_net_type&sni=$is_servername&pbk=$is_public_key&fp=chrome#$loc-$isp_loc-${uuid:0:8}"
+        is_info_str=($is_protocol $is_addr $port $uuid $is_flow $is_net_type reality $is_servername chrome $is_public_key $is_short_id)
+        is_url="$is_protocol://$uuid@$is_addr:$port?encryption=none&security=reality&flow=$is_flow&type=$is_net_type&sni=$is_servername&sid=$is_short_id&pbk=$is_public_key&fp=chrome#$loc-$isp_loc-${uuid:0:8}"
         ;;
     anytls)
         is_can_change=(0 1 4)
